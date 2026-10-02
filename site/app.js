@@ -1,4 +1,6 @@
-/* FSB — bolji. One-page app: every "page" is a #/route drawn from /api/data. */
+/* Bolji FSB. One-page app: every "page" is a #/route.
+   Runs three ways: with the local server (server.py, /api/...), as one offline HTML file with the data
+   inside (FSB_STATIC), or as the hosted site that loads data.json next to it (FSB_DATA_URL). */
 "use strict";
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -43,7 +45,9 @@ const SPECIAL = {
 
 let D = null;          // all data from the server
 // Set when this page was exported as a single offline file (export.py): no server, everything is inside.
-const STATIC = window.FSB_STATIC || null;
+const EMBEDDED = window.FSB_STATIC || null;   // offline file: all data is inside the page
+const DATA_URL = window.FSB_DATA_URL || null;   // hosted site: data.json sits next to the page
+const STATIC = !!(EMBEDDED || DATA_URL);        // either way there is no local server to ask
 let IDX = {};          // path -> {node, parent, section, trail}
 let SEARCH = [];       // search index
 let seen = new Set(store.get("seen", []));
@@ -446,7 +450,7 @@ async function loadTimetable(g) {
   if (!g) return;
   box.innerHTML = '<div class="loading"><div class="spinner"></div>Učitavam raspored…</div>';
   try {
-    const r = STATIC ? { days: STATIC.timetables[g] || [[], [], [], [], []] } : await fetch("/api/raspored?grupa=" + encodeURIComponent(g)).then((r) => r.json());
+    const r = STATIC ? { days: D.timetables[g] || [[], [], [], [], []] } : await fetch("/api/raspored?grupa=" + encodeURIComponent(g)).then((r) => r.json());
     if (r.error) throw new Error(r.error);
     if (!$("#tt")) return;
     const days = r.days;
@@ -582,7 +586,7 @@ function render() {
   main.innerHTML = html;
   $$(".side", main).forEach(bindTree);
   if (bind) bind();
-  document.title = title + " · FSB";
+  document.title = title + " · Bolji FSB";
   drawNav();
   $(".side .cur")?.scrollIntoView({ block: "nearest" });
 }
@@ -671,15 +675,16 @@ function setStatus(s) {
   $("#status").textContent = s.refreshing ? "Osvježavam s fsb.unizg.hr…" : `Ažurirano ${mins < 1 ? "upravo" : mins < 60 ? `prije ${mins} min` : d.toLocaleString("hr")}` + (s.error ? " (zadnji pokušaj nije uspio)" : "");
 }
 async function load() {
-  D = STATIC || await fetch("/api/data").then((r) => r.json());
+  D = EMBEDDED || await fetch(DATA_URL || "/api/data", { cache: "no-cache" }).then((r) => r.json());
   indexData();
   render();
   if (STATIC) {
     $("#status").textContent = "Snimka od " + new Date(D.updated).toLocaleString("hr") + " — provjeravam ima li novijeg…";
     $("#refreshBtn").textContent = "Provjeri novosti";
     $("#refreshBtn").onclick = () => pullRemote(false);
-    if (D.remote) $("#dlLink").hidden = false;
-    pullRemote(true);
+    if (D.download) { $("#dlLink").href = D.download; $("#dlLink").hidden = false; }
+    if (EMBEDDED) pullRemote(true); else $("#status").textContent = "Ažurirano " + new Date(D.updated).toLocaleString("hr");
+    if (DATA_URL && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   } else setStatus({ updated: D.updated });
 }
 async function poll() {
@@ -710,8 +715,8 @@ $("#refreshBtn").addEventListener("click", async () => {
 /* Exported file: fetch the newest data.json from the repo's "data" branch (GitHub rebuilds it every 15 min).
    Falls back silently to the snapshot inside the file when there's no internet. */
 async function pullRemote(quiet) {
-  if (!STATIC || !D.remote) return;
-  const urls = [D.remote];
+  if (!STATIC || !(DATA_URL || D.remote)) return;
+  const urls = [DATA_URL || D.remote];
   for (const u of urls) {
     try {
       const fresh = await fetch(u, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });

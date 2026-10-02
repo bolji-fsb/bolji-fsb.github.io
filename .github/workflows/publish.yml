@@ -1,6 +1,5 @@
-# Every 15 minutes: re-read fsb.unizg.hr, rebuild the offline HTML file + data.json,
-# and force-push them as a single commit to the "data" branch.
-# The HTML file fetches data.json from there (raw.githubusercontent.com) when it's online.
+# Every 15 minutes: re-read fsb.unizg.hr and publish https://bolji-fsb.github.io/
+# (the website + data.json + the downloadable offline file bolji-fsb.html).
 name: publish
 on:
   schedule:
@@ -9,9 +8,11 @@ on:
   push:
     branches: [main]
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 concurrency:
-  group: publish
+  group: pages
   cancel-in-progress: false
 jobs:
   build:
@@ -29,13 +30,15 @@ jobs:
           key: fsb-cache-${{ github.run_id }}
           restore-keys: fsb-cache-
       - run: python3 export.py --site
-      - name: Push to the data branch (one commit, no growing history)
-        run: |
-          cd dist/site
-          rm -f index.html
-          git init -q -b data
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data.json fsb-online.html
-          git commit -q -m "Data snapshot $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

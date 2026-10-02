@@ -1,0 +1,16 @@
+{
+  "name": "Bolji FSB (neslužbeno)",
+  "short_name": "Bolji FSB",
+  "description": "Raspored, oglasne ploče, vijesti i stranice FSB-a na jednom mjestu. Neslužbeno.",
+  "lang": "hr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#0b5cad",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

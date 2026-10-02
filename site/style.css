@@ -304,3 +304,6 @@ kbd { white-space: nowrap; }
   .hero-search span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 .unofficial { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; margin-left: 4px; vertical-align: 2px; }
+/* grid children default to "as wide as their content" — let them shrink on phones */
+.page > div, .page > aside, .post > div, .two > div { min-width: 0; }
+.post h3, .post .meta { overflow-wrap: anywhere; }

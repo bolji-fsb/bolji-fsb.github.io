@@ -3,7 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FSB — bolji</title>
+<title>Bolji FSB</title>
+<!--pwa-->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b5cad">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bolji FSB">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!--/pwa-->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230b5cad'/><text x='16' y='22' font-family='Arial' font-weight='700' font-size='13' text-anchor='middle' fill='white'>FSB</text></svg>">
 <link rel="stylesheet" href="style.css">
 <script>
@@ -17,7 +26,7 @@
     <button class="icon-btn only-mobile" id="menuBtn" aria-label="Izbornik"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <a class="brand" href="#/">
       <span class="logo">FSB</span>
-      <span class="brand-txt"><b>FSB Online <span class="unofficial">neslužbeno</span></b><small>Fakultet strojarstva i brodogradnje</small></span>
+      <span class="brand-txt"><b>Bolji FSB <span class="unofficial">neslužbeno</span></b><small>Fakultet strojarstva i brodogradnje</small></span>
     </a>
     <nav class="mainnav" id="mainnav" aria-label="Glavni izbornik"></nav>
     <div class="top-actions">
@@ -53,7 +62,7 @@
     <div class="foot-status">
       <span id="status">—</span>
       <button class="link-btn" id="refreshBtn">Osvježi sada</button>
-      <a id="dlLink" href="https://github.com/TigerShark900/fsb-online/blob/data/fsb-online.html" target="_blank" rel="noopener" hidden>⬇ Preuzmi najnoviju verziju datoteke</a>
+      <a id="dlLink" href="#" target="_blank" rel="noopener" hidden>⬇ Preuzmi kao datoteku (radi i offline)</a>
       <small>Neslužbeni prikaz. Sav sadržaj se čita uživo s <a href="https://www.fsb.unizg.hr/index.php?fsbonline" target="_blank" rel="noopener">fsb.unizg.hr</a>.</small>
     </div>
   </div>

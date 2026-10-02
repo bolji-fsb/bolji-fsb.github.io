@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Builds ONE self-contained HTML file (dist/fsb-online.html) with everything inside it:
+"""Builds ONE self-contained HTML file (dist/bolji-fsb.html) with everything inside it:
 pages, news, notice boards, every group's timetable and the whole staff directory.
 It works offline / from any folder / on any computer, but it's a snapshot - re-run this to update.
 
-    python3 export.py            -> dist/fsb-online.html
-    python3 export.py --site     -> also dist/site/ (data.json + fsb-online.html) for the "data" branch
+    python3 export.py            -> dist/bolji-fsb.html
+    python3 export.py --site     -> also dist/site/ = the website for GitHub Pages (installable on phones)
 
-The file pulls fresh data.json from GitHub whenever it's online."""
+The offline file pulls fresh data.json from the website whenever it's online."""
 import json
 import os
+import re
+import shutil
 import sys
 import time
 
@@ -45,25 +47,41 @@ def main():
             fsb.log("staff units %d/%d" % (i, len(units)))
     data["staff"] = sorted(people.values(), key=lambda p: (p["surname"], p["name"]))
 
-    # where the file looks for fresh data: the repo's "data" branch, rebuilt hourly by GitHub Actions
-    data["remote"] = os.environ.get("FSB_REMOTE", "https://raw.githubusercontent.com/TigerShark900/fsb-online/data/data.json")
+    # the hosted site (GitHub Pages of the bolji-fsb organisation): the offline file pulls updates from it
+    host = os.environ.get("FSB_HOST", "https://bolji-fsb.github.io/")
+    data["remote"] = host + "data.json"
+    data["download"] = host + "bolji-fsb.html"
 
     css = open(os.path.join(SITE, "style.css"), encoding="utf-8").read()
     js = open(os.path.join(SITE, "app.js"), encoding="utf-8").read()
     shell = open(os.path.join(SITE, "index.html"), encoding="utf-8").read()
     blob = json.dumps(data, ensure_ascii=False)
-    page = shell.replace('<link rel="stylesheet" href="style.css">', "<style>\n" + css + "\n</style>")
+
+    # 1) the single offline file: css, js and data all inside; no app-install bits (they need a website)
+    page = re.sub(r"<!--pwa-->.*?<!--/pwa-->\n?", "", shell, flags=re.S)
+    page = page.replace('<link rel="stylesheet" href="style.css">', "<style>\n" + css + "\n</style>")
     page = page.replace('<script src="app.js"></script>',
                         "<script>window.FSB_STATIC = " + blob.replace("</", "<\\/") + ";</script>\n<script>\n" +
                         js.replace("</script", "<\\/script") + "\n</script>")
+    outs = [os.path.join(HERE, "dist", "bolji-fsb.html")]
 
-    outs = [os.path.join(HERE, "dist", "fsb-online.html")]
+    # 2) the hosted site: normal files + data.json (+ the offline file to download)
     if "--site" in sys.argv:
         site = os.path.join(HERE, "dist", "site")
-        outs += [os.path.join(site, "index.html"), os.path.join(site, "fsb-online.html")]
-        os.makedirs(site, exist_ok=True)
+        if os.path.isdir(site):
+            shutil.rmtree(site)
+        os.makedirs(site)
+        for f in ("app.js", "style.css", "sw.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"):
+            shutil.copy(os.path.join(SITE, f), site)
+        hosted = shell.replace('<script src="app.js"></script>',
+                               '<script>window.FSB_DATA_URL = "data.json";</script>\n<script src="app.js"></script>')
+        with open(os.path.join(site, "index.html"), "w", encoding="utf-8") as f:
+            f.write(hosted)
         with open(os.path.join(site, "data.json"), "w", encoding="utf-8") as f:
             f.write(blob)
+        open(os.path.join(site, ".nojekyll"), "w").close()
+        outs.append(os.path.join(site, "bolji-fsb.html"))
+
     for out in outs:
         os.makedirs(os.path.dirname(out), exist_ok=True)
         with open(out, "w", encoding="utf-8") as f:
