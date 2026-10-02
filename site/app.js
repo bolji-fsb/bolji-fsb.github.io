@@ -865,6 +865,7 @@ $("#searchInput").addEventListener("keydown", (e) => {
 $("#searchResults").addEventListener("click", (e) => { if (e.target.closest("a")) closeSearch(); });
 $("#search").addEventListener("click", (e) => { if (e.target.id === "search") closeSearch(); });
 $("#searchBtn").addEventListener("click", openSearch);
+$("#searchClose").addEventListener("click", closeSearch);
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openSearch(); }
   else if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); }

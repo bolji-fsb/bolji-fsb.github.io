@@ -350,3 +350,16 @@ html, body { overflow-x: hidden; }
 .follow-grid > div, .follow-settings > .card { min-width: 0; }
 @media (max-width: 960px) { .follow-grid { grid-template-columns: minmax(0, 1fr); } }
 .fcard select.input { max-width: 100%; text-overflow: ellipsis; }
+/* the decorative circle in the banner must never catch taps (on phones it sits over the search box) */
+.hero::after { pointer-events: none; }
+.hero > * { position: relative; z-index: 1; }
+
+.search-close { border: 0; background: none; padding: 0; cursor: pointer; color: var(--muted); display: grid; place-items: center; }
+.search-close span { display: none; font-size: 20px; width: 36px; height: 36px; place-items: center; border-radius: 10px; }
+.search-row input::-webkit-search-cancel-button { display: none; }
+/* touch screens: no Esc key, show a real close button */
+@media (hover: none) {
+  .search-close kbd { display: none; }
+  .search-close span { display: grid; }
+  .search-close span:active { background: var(--surface-2); }
+}
