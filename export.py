@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Builds ONE self-contained HTML file (dist/bolji-fsb.html) with everything inside it:
+"""Builds ONE self-contained HTML file (dist/fsb-kompas.html) with everything inside it:
 pages, news, notice boards, every group's timetable and the whole staff directory.
 It works offline / from any folder / on any computer, but it's a snapshot - re-run this to update.
 
-    python3 export.py            -> dist/bolji-fsb.html
+    python3 export.py            -> dist/fsb-kompas.html
     python3 export.py --site     -> also dist/site/ = the website for GitHub Pages (installable on phones)
 
 The offline file pulls fresh data.json from the website whenever it's online."""
@@ -52,10 +52,10 @@ def main():
         p["email"] = ""
     data["staff"] = sorted(people.values(), key=lambda p: (p["surname"], p["name"]))
 
-    # the hosted site (GitHub Pages of the bolji-fsb organisation): the offline file pulls updates from it
-    host = os.environ.get("FSB_HOST", "https://bolji-fsb.github.io/")
+    # the hosted site (GitHub Pages of the fsb-kompas organisation): the offline file pulls updates from it
+    host = os.environ.get("FSB_HOST", "https://fsb-kompas.github.io/")
     data["remote"] = host + "data.json"
-    data["download"] = host + "bolji-fsb.html"
+    data["download"] = host + "fsb-kompas.html"
 
     css = open(os.path.join(SITE, "style.css"), encoding="utf-8").read()
     js = open(os.path.join(SITE, "app.js"), encoding="utf-8").read()
@@ -68,7 +68,7 @@ def main():
     page = page.replace('<script src="app.js"></script>',
                         "<script>window.FSB_STATIC = " + blob.replace("</", "<\\/") + ";</script>\n<script>\n" +
                         js.replace("</script", "<\\/script") + "\n</script>")
-    outs = [os.path.join(HERE, "dist", "bolji-fsb.html")]
+    outs = [os.path.join(HERE, "dist", "fsb-kompas.html")]
 
     # 2) the hosted site: normal files + data.json (+ the offline file to download)
     if "--site" in sys.argv:
@@ -85,7 +85,7 @@ def main():
         with open(os.path.join(site, "data.json"), "w", encoding="utf-8") as f:
             f.write(blob)
         open(os.path.join(site, ".nojekyll"), "w").close()
-        outs.append(os.path.join(site, "bolji-fsb.html"))
+        outs.append(os.path.join(site, "fsb-kompas.html"))
 
     for out in outs:
         os.makedirs(os.path.dirname(out), exist_ok=True)

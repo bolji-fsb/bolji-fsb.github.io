@@ -1,4 +1,4 @@
-/* Bolji FSB. One-page app: every "page" is a #/route.
+/* FSB Kompas. One-page app: every "page" is a #/route.
    Runs three ways: with the local server (server.py, /api/...), as one offline HTML file with the data
    inside (FSB_STATIC), or as the hosted site that loads data.json next to it (FSB_DATA_URL). */
 "use strict";
@@ -213,7 +213,7 @@ function notifyFollowed(fresh) {
 async function showNote(n, more) {
   const title = n ? `${isBoardItem(n) ? "Nova obavijest" : "Nova vijest"} · ${whyFollowed(n)[0]?.v || "praćeno"}` : `Još ${more} praćenih objava`;
   const url = n ? (isBoardItem(n) ? "#/oglasne-ploce/" : "#/vijesti/") + n.id : "#/pracenje";
-  const opts = { body: n ? n.title : "Otvori Praćeno za sve.", tag: "bolji-fsb-" + (n ? n.id : "more"), data: { url } };
+  const opts = { body: n ? n.title : "Otvori Praćeno za sve.", tag: "fsb-kompas-" + (n ? n.id : "more"), data: { url } };
   if (!EMBEDDED) opts.icon = "icon-192.png";
   try {
     const reg = DATA_URL && "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
@@ -738,7 +738,7 @@ function bindFollow() {
     }
     rerender();
   });
-  $("#noteTest")?.addEventListener("click", () => showNote(followedItems()[0] || { id: "test", title: "Probna obavijest iz Boljeg FSB-a", html: "", units: [] }));
+  $("#noteTest")?.addEventListener("click", () => showNote(followedItems()[0] || { id: "test", title: "Probna obavijest iz FSB Kompasa", html: "", units: [] }));
   $("#noteOff")?.addEventListener("click", () => { setFollow({ notify: false }); rerender(); });
   $("#fCourses")?.addEventListener("change", (e) => { setFollow({ myCourses: e.target.checked }); rerender(); });
   $("#kwForm").addEventListener("submit", (e) => {
@@ -763,12 +763,12 @@ function bindFollow() {
 }
 
 /* ---- about ---- */
-const REPO = "https://github.com/bolji-fsb/bolji-fsb.github.io";
+const REPO = "https://github.com/fsb-kompas/fsb-kompas.github.io";
 function viewAbout() {
   const when = D.updated ? new Date(D.updated).toLocaleString("hr") : "—";
   return `${crumbsFix(`<nav class="crumbs"></nav>`, [], "O stranici")}
     <h1 class="title">O stranici</h1>
-    <p class="subtitle">Bolji FSB je <b>neslužbeni</b> studentski projekt — pregledniji prikaz javnih stranica Fakulteta strojarstva i brodogradnje.</p>
+    <p class="subtitle">FSB Kompas je <b>neslužbeni</b> studentski projekt — pregledniji prikaz javnih stranica Fakulteta strojarstva i brodogradnje.</p>
     <article class="card prose about">
       <h2>Što je ovo?</h2>
       <p>Svi podaci (stranice, vijesti, oglasne ploče, raspored) dolaze sa službene stranice
@@ -834,7 +834,7 @@ function render() {
   const params = new URLSearchParams(qs || "");
   let html, bind, title = "FSB";
   let m;
-  if (!path) { html = viewHome(); title = "FSB — početna"; bind = () => $("#heroSearch").addEventListener("click", openSearch); }
+  if (!path) { html = viewHome(); title = "Početna"; bind = () => $("#heroSearch").addEventListener("click", openSearch); }
   else if (path === "vijesti") { html = viewNews(); bind = bindNews; title = "Vijesti"; }
   else if ((m = path.match(/^vijesti\/(\d+)$/))) { html = viewArticle("news", m[1]); title = D.news.find((x) => x.id === m[1])?.title || "Vijest"; }
   else if (path === "oglasne-ploce") { html = viewBoards(params); bind = bindBoards; title = "Oglasne ploče"; }
@@ -850,7 +850,7 @@ function render() {
   main.innerHTML = html;
   $$(".side", main).forEach(bindTree);
   if (bind) bind();
-  document.title = title + " · Bolji FSB";
+  document.title = title + " · FSB Kompas";
   drawNav();
   $(".side .cur")?.scrollIntoView({ block: "nearest" });
 }

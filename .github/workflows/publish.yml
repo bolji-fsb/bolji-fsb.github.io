@@ -1,9 +1,9 @@
-# Every 15 minutes: re-read fsb.unizg.hr and publish https://bolji-fsb.github.io/
-# (the website + data.json + the downloadable offline file bolji-fsb.html).
+# Every 15 minutes: re-read fsb.unizg.hr and publish https://fsb-kompas.github.io/
+# (the website + data.json + the downloadable offline file fsb-kompas.html).
 name: publish
 on:
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "4,19,34,49 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
