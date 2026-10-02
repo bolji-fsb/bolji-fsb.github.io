@@ -4,7 +4,9 @@ pages, news, notice boards, every group's timetable and the whole staff director
 It works offline / from any folder / on any computer, but it's a snapshot - re-run this to update.
 
     python3 export.py            -> dist/fsb-online.html
-    python3 export.py --site     -> dist/site/index.html (same thing, for static hosting)"""
+    python3 export.py --site     -> also dist/site/ (index.html + data.json + fsb-online.html) for hosting
+
+The file pulls fresh data from the hosted copy's data.json whenever it's online."""
 import json
 import os
 import sys
@@ -43,23 +45,31 @@ def main():
             fsb.log("staff units %d/%d" % (i, len(units)))
     data["staff"] = sorted(people.values(), key=lambda p: (p["surname"], p["name"]))
 
+    # where the downloadable file looks for fresh data (the hosted copy, rebuilt hourly by GitHub)
+    data["remote"] = os.environ.get("FSB_REMOTE", "sharknet.me/fsb-online/")
+
     css = open(os.path.join(SITE, "style.css"), encoding="utf-8").read()
     js = open(os.path.join(SITE, "app.js"), encoding="utf-8").read()
-    page = open(os.path.join(SITE, "index.html"), encoding="utf-8").read()
-    blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")  # can't break out of <script>
-    page = page.replace('<link rel="stylesheet" href="style.css">', "<style>\n" + css + "\n</style>")
+    shell = open(os.path.join(SITE, "index.html"), encoding="utf-8").read()
+    blob = json.dumps(data, ensure_ascii=False)
+    page = shell.replace('<link rel="stylesheet" href="style.css">', "<style>\n" + css + "\n</style>")
     page = page.replace('<script src="app.js"></script>',
-                        "<script>window.FSB_STATIC = " + blob + ";</script>\n<script>\n" + js.replace("</script", "<\\/script") + "\n</script>")
+                        "<script>window.FSB_STATIC = " + blob.replace("</", "<\\/") + ";</script>\n<script>\n" +
+                        js.replace("</script", "<\\/script") + "\n</script>")
 
+    outs = [os.path.join(HERE, "dist", "fsb-online.html")]
     if "--site" in sys.argv:
-        out = os.path.join(HERE, "dist", "site", "index.html")
-    else:
-        out = os.path.join(HERE, "dist", "fsb-online.html")
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(page)
+        site = os.path.join(HERE, "dist", "site")
+        outs += [os.path.join(site, "index.html"), os.path.join(site, "fsb-online.html")]
+        os.makedirs(site, exist_ok=True)
+        with open(os.path.join(site, "data.json"), "w", encoding="utf-8") as f:
+            f.write(blob)
+    for out in outs:
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(page)
     fsb.log("wrote %s (%.1f MB, %d people, %d timetables) in %.0fs" % (
-        out, os.path.getsize(out) / 1e6, len(data["staff"]), len(data["timetables"]), time.time() - t0))
+        ", ".join(outs), os.path.getsize(outs[0]) / 1e6, len(data["staff"]), len(data["timetables"]), time.time() - t0))
 
 
 if __name__ == "__main__":

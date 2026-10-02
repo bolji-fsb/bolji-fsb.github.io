@@ -215,7 +215,7 @@ function viewHome() {
   return `
   <section class="hero">
     <h1>FSB, ali pregledno.</h1>
-    <p>Raspored, oglasne ploče, vijesti i sve stranice Fakulteta strojarstva i brodogradnje na jednom mjestu — ${STATIC ? "snimka s fsb.unizg.hr od " + fmtDate(D.updated.slice(0, 10)) : "uživo s fsb.unizg.hr"}.</p>
+    <p>Raspored, oglasne ploče, vijesti i sve stranice Fakulteta strojarstva i brodogradnje na jednom mjestu — ${STATIC ? "s fsb.unizg.hr, osvježava se svaki sat" : "uživo s fsb.unizg.hr"}.</p>
     <button class="hero-search" id="heroSearch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Što tražiš? npr. „upisi", „erasmus", „termodinamika"…</span><kbd>Ctrl K</kbd></button>
     <div class="hero-meta"><span>${Object.keys(IDX).length} stranica</span><span>${D.news.length} vijesti</span><span>${D.boards.length} obavijesti na pločama</span></div>
   </section>
@@ -675,8 +675,11 @@ async function load() {
   indexData();
   render();
   if (STATIC) {
-    $("#status").textContent = "Offline snimka od " + new Date(D.updated).toLocaleString("hr");
-    $("#refreshBtn").hidden = true;
+    $("#status").textContent = "Snimka od " + new Date(D.updated).toLocaleString("hr") + " — provjeravam ima li novijeg…";
+    $("#refreshBtn").textContent = "Provjeri novosti";
+    $("#refreshBtn").onclick = () => pullRemote(false);
+    if (D.remote) $("#dlLink").hidden = false;
+    pullRemote(true);
   } else setStatus({ updated: D.updated });
 }
 async function poll() {
@@ -698,11 +701,43 @@ async function poll() {
   } catch (e) { $("#status").textContent = "Lokalni server ne odgovara."; }
 }
 $("#refreshBtn").addEventListener("click", async () => {
+  if (STATIC) return;
   await fetch("/api/refresh", { method: "POST" });
   $("#status").textContent = "Osvježavam s fsb.unizg.hr…";
   toast("Povlačim najnovije s fsb.unizg.hr — traje oko minutu.", 4000);
   const iv = setInterval(async () => { const s = await fetch("/api/status").then((r) => r.json()); if (!s.refreshing) { clearInterval(iv); poll(); } }, 3000);
 });
+/* Exported file: fetch the newest data.json from the hosted copy (GitHub rebuilds it hourly).
+   Falls back silently to the snapshot inside the file when there's no internet. */
+async function pullRemote(quiet) {
+  if (!STATIC || !D.remote) return;
+  const hosted = /^https?:$/.test(location.protocol) && location.pathname.replace(/[^/]*$/, "").endsWith("/fsb-online/");
+  const urls = hosted ? ["data.json"] : ["https://" + D.remote + "data.json", "http://" + D.remote + "data.json"];
+  for (const u of urls) {
+    try {
+      const fresh = await fetch(u, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+      if (!fresh.tree || !fresh.news) throw new Error("bad data");
+      const before = new Set([...D.news, ...D.boards].map((x) => x.id));
+      const changed = fresh.updated > D.updated;
+      if (changed) {
+        D = fresh;
+        indexData();
+        const onInput = /INPUT|SELECT/.test(document.activeElement?.tagName || "");
+        if (!onInput) render(); else drawNav();
+        const nw = [...D.boards, ...D.news].filter((x) => !before.has(x.id));
+        if (nw.length) toast(`${nw.length === 1 ? "Nova objava" : nw.length + " novih objava"}: <a href="${D.boards.includes(nw[0]) ? "#/oglasne-ploce/" : "#/vijesti/"}${nw[0].id}">${esc(nw[0].title.slice(0, 70))}</a>`);
+        else if (!quiet) toast("Podaci osvježeni s interneta.", 3000);
+      }
+      $("#status").textContent = "Ažurirano " + new Date(D.updated).toLocaleString("hr") + " (online)";
+      return;
+    } catch (e) { /* try the next URL, then stay on the snapshot */ }
+  }
+  $("#status").textContent = "Offline — snimka od " + new Date(D.updated).toLocaleString("hr");
+}
+if (STATIC) {
+  setInterval(() => pullRemote(true), 600000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && D) pullRemote(true); });
+}
 if (!STATIC) {
   setInterval(poll, 120000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && D) poll(); });
