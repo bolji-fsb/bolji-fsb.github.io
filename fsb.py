@@ -4,6 +4,7 @@ The site has no API, so we download its pages and pick out the useful bits:
 the menu tree, page contents, news, notice boards (oglasne ploče),
 the lecture timetable and the staff directory.
 Downloads are cached on disk in ./cache so we don't hammer their server."""
+import datetime
 import html
 import json
 import os
@@ -494,5 +495,5 @@ def build(page_age=6 * 3600, live_age=15 * 60):
         "boardUnits": [n for _, n in units],
         "timetable": tt,
         "staffUnits": su,
-        "updated": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),  # with timezone so browsers show local time
     }

@@ -718,7 +718,7 @@ async function pullRemote(quiet) {
       const fresh = await fetch(u, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
       if (!fresh.tree || !fresh.news) throw new Error("bad data");
       const before = new Set([...D.news, ...D.boards].map((x) => x.id));
-      const changed = fresh.updated > D.updated;
+      const changed = new Date(fresh.updated) > new Date(D.updated);
       if (changed) {
         D = fresh;
         indexData();
