@@ -307,3 +307,46 @@ kbd { white-space: nowrap; }
 /* grid children default to "as wide as their content" — let them shrink on phones */
 .page > div, .page > aside, .post > div, .two > div { min-width: 0; }
 .post h3, .post .meta { overflow-wrap: anywhere; }
+
+/* ---------- Praćeno ---------- */
+.follow-btn { position: relative; color: var(--text); }
+.follow-btn:hover { text-decoration: none; }
+.follow-btn.on { color: var(--accent); }
+.follow-btn.on svg { fill: currentColor; }
+.follow-btn .badge { position: absolute; top: -6px; right: -7px; margin: 0; }
+.follow-grid { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px; align-items: start; }
+.follow-settings { display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 960px) { .follow-grid { grid-template-columns: 1fr; } }
+.fcard { padding: 16px 18px; }
+.fcard h3 { margin: 0 0 8px; font-size: 15.5px; }
+.fcard p { margin: 0 0 8px; font-size: 14px; }
+.fcard .hint, .hint { color: var(--muted); font-size: 12.5px; }
+.fcard .btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips.dim { opacity: .45; }
+.chips.ideas .pill { font-size: 12.5px; padding: 3px 10px; color: var(--muted); }
+.chip .x { border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 0 0 2px; opacity: .7; }
+.chip .x:hover { opacity: 1; }
+.chip.follow { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.check input { width: 17px; height: 17px; accent-color: var(--brand); }
+.addrow { display: flex; gap: 8px; }
+.addrow .input { flex: 1; min-width: 0; }
+/* header fits nav + search + ★ + theme between 1261px and 1500px */
+@media (min-width: 1261px) and (max-width: 1500px) {
+  .top-in { gap: 12px; }
+  .nav-item > a { padding: 8px 7px; }
+  .search-btn { width: 38px; height: 38px; padding: 0; justify-content: center; }
+  .search-btn kbd { display: none; }
+  .brand-txt small { display: none; }
+}
+.chips .chip { white-space: normal; max-width: 100%; }
+html, body { overflow-x: hidden; }
+@media (min-width: 1261px) {
+  .top-in { max-width: 1440px; }
+  .search-btn { min-width: 0; }
+  .search-btn span { display: none; }
+}
+.follow-grid > div, .follow-settings > .card { min-width: 0; }
+@media (max-width: 960px) { .follow-grid { grid-template-columns: minmax(0, 1fr); } }
+.fcard select.input { max-width: 100%; text-overflow: ellipsis; }

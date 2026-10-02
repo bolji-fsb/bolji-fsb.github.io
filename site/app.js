@@ -79,6 +79,10 @@ function indexData() {
     store.set("seenInit", true);
   }
 
+  BOARD_IDS = new Set(D.boards.map((x) => x.id));
+  for (const n of [...D.news, ...D.boards]) n._txt = norm(n.title + " " + plainText(n.html));
+  resetRules();
+
   SEARCH = [];
   for (const [path, e] of Object.entries(IDX)) {
     const txt = plainText(D.content[path] || "");
@@ -121,16 +125,114 @@ function markSeen(ids) {
   if (ch) { store.set("seen", [...seen]); drawNav(); }
 }
 
+/* ------------------------------------------------------------ following ("Praćeno") */
+// What you follow: departments (the ⭐ on notice boards, stored as "myUnits"), keywords,
+// news categories, and optionally every course from your timetable group.
+const FOLLOW_DEFAULT = { keywords: [], cats: [], myCourses: true, notify: false };
+const follow = () => ({ ...FOLLOW_DEFAULT, ...store.get("follow", {}) });
+function setFollow(patch) { store.set("follow", { ...follow(), ...patch }); resetRules(); }
+const KEYWORD_IDEAS = ["kolokvij", "ispitni rok", "rezultati", "početak nastave", "konzultacije", "demonstrator", "stipendija", "natječaj", "praksa"];
+
+// course names from a timetable, without the " - S I" style suffixes
+function courseNames(days) {
+  return [...new Set(days.flat().map((e) => e.name.replace(/\s+-\s+.*$/, "").trim()).filter((n) => n.length > 3))];
+}
+function myCourses() {
+  const g = store.get("group", "");
+  if (!g) return [];
+  if (D.timetables && D.timetables[g]) return courseNames(D.timetables[g]);
+  const saved = store.get("groupCourses", null);  // local-server mode: remembered when the timetable was opened
+  return saved && saved.group === g ? saved.list : [];
+}
+// whole-word match on accent-free lowercase text, so "termodinamika i" doesn't hit "termodinamika ii"
+const wordRx = (t) => new RegExp("(^|[^a-z0-9])" + norm(t).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+") + "(?![a-z0-9])");
+
+let _rules = null;
+const _why = new Map();
+function resetRules() { _rules = null; _why.clear(); }
+function rules() {
+  if (!_rules) {
+    const f = follow();
+    _rules = {
+      units: store.get("myUnits", []),
+      cats: f.cats,
+      words: f.keywords.map((k) => [k, wordRx(k)]),
+      courses: f.myCourses ? myCourses().map((c) => [c, wordRx(c)]) : [],
+    };
+  }
+  return _rules;
+}
+// rules changed in another tab (or another window of the installed app): re-match and redraw
+window.addEventListener("storage", (e) => {
+  if (!D || !["follow", "myUnits", "group", "groupCourses", "seen"].includes(e.key)) return;
+  if (e.key === "seen") seen = new Set(store.get("seen", []));
+  resetRules();
+  if (!/INPUT|SELECT/.test(document.activeElement?.tagName || "")) render(); else drawNav();
+});
+let BOARD_IDS = new Set();
+const isBoardItem = (n) => BOARD_IDS.has(n.id);
+/* Why is this post followed? [] = it isn't. Each reason: {t: "unit" | "cat" | "course" | "word", v: label} */
+function whyFollowed(n) {
+  if (_why.has(n.id)) return _why.get(n.id);
+  const r = rules(), why = [];
+  for (const u of n.units || []) if (r.units.includes(u)) why.push({ t: "unit", v: u });
+  if (!isBoardItem(n) && r.cats.includes(n.cat)) why.push({ t: "cat", v: n.cat });
+  const text = n._txt || norm(n.title + " " + plainText(n.html));
+  for (const [c, rx] of r.courses) if (rx.test(text)) why.push({ t: "course", v: c });
+  for (const [k, rx] of r.words) if (rx.test(text)) why.push({ t: "word", v: k });
+  _why.set(n.id, why);
+  return why;
+}
+const WHY_ICON = { unit: "⭐", cat: "📰", course: "📘", word: "🔎" };
+const whyChips = (n) => whyFollowed(n).map((w) => `<span class="chip follow">${WHY_ICON[w.t]} ${esc(w.v)}</span>`).join("");
+const postKey = (x) => x.date + String(x.id).padStart(8, "0");
+function followedItems() {
+  return [...D.boards, ...D.news].filter((n) => whyFollowed(n).length).sort((a, b) => postKey(b).localeCompare(postKey(a)));
+}
+const unseenFollowed = () => followedItems().filter((n) => isNew(n.id));
+function updateBadge() {
+  const c = unseenFollowed().length;
+  try { if (navigator.setAppBadge) (c ? navigator.setAppBadge(c) : navigator.clearAppBadge()).catch(() => {}); } catch (e) {}
+  return c;
+}
+
+/* System notifications for newly arrived followed posts. Each post notifies once, even with several tabs open. */
+const canNotify = () => "Notification" in window && Notification.permission === "granted" && follow().notify;
+function notifyFollowed(fresh) {
+  const sent = new Set(store.get("notified", []));
+  const todo = fresh.filter((n) => whyFollowed(n).length && !sent.has(n.id));
+  if (!todo.length) return [];
+  todo.forEach((n) => sent.add(n.id));
+  store.set("notified", [...sent].slice(-800));
+  if (canNotify()) {
+    todo.slice(0, 3).forEach((n) => showNote(n));
+    if (todo.length > 3) showNote(null, todo.length - 3);
+  }
+  return todo;
+}
+async function showNote(n, more) {
+  const title = n ? `${isBoardItem(n) ? "Nova obavijest" : "Nova vijest"} · ${whyFollowed(n)[0]?.v || "praćeno"}` : `Još ${more} praćenih objava`;
+  const url = n ? (isBoardItem(n) ? "#/oglasne-ploce/" : "#/vijesti/") + n.id : "#/pracenje";
+  const opts = { body: n ? n.title : "Otvori Praćeno za sve.", tag: "bolji-fsb-" + (n ? n.id : "more"), data: { url } };
+  if (!EMBEDDED) opts.icon = "icon-192.png";
+  try {
+    const reg = DATA_URL && "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg) return await reg.showNotification(title, opts);  // phones only allow notifications through the service worker
+    const note = new Notification(title, opts);
+    note.onclick = () => { window.focus(); location.hash = url; note.close(); };
+  } catch (e) { /* notifications not available here */ }
+}
+
 /* ------------------------------------------------------------ quick links */
 const QUICK = [
   { title: "Raspored predavanja", sub: "Tjedni raspored po grupi", url: "#/raspored", icon: "clock", alias: "satnica" },
   { title: "Oglasne ploče", sub: "Obavijesti katedri i kolegija", url: "#/oglasne-ploce", icon: "board", badge: "boards" },
+  { title: "Praćeno", sub: "Tvoji kolegiji, katedre i obavijesti", url: "#/pracenje", icon: "star", badge: "follow", alias: "obavijesti notifikacije favoriti" },
   { title: "Raspored ispita", sub: "Ispitni rokovi i kolokviji", url: "#/studiranje_i_nastava/nastava/raspored_ispita", icon: "exam", alias: "rokovi kolokviji" },
   { title: "Akademski kalendar", sub: "Semestri, praznici, rokovi", url: "#/studiranje_i_nastava/nastava/akademski_kalendar", icon: "cal" },
   { title: "Studomat", sub: "Upis, prijava ispita", url: "https://www.isvu.hr/studomat/hr/prijava", icon: "login", ext: true, alias: "isvu" },
   { title: "E-učenje (Moodle)", sub: "Materijali kolegija", url: "https://e-ucenje.fsb.hr/", icon: "book", ext: true, alias: "moodle" },
   { title: "Djelatnici", sub: "Imenik, e-mail, katedre", url: "#/djelatnici", icon: "people", alias: "profesori imenik" },
-  { title: "Vijesti", sub: "Novosti i događanja", url: "#/vijesti", icon: "news", badge: "news" },
   { title: "Studentska služba", sub: "Referada, potvrde, FAQ", url: "#/studiranje_i_nastava/studentska_sluzba", icon: "desk", alias: "referada" },
   { title: "Upisi", sub: "Prijediplomski, diplomski, usmjerenja", url: "#/studiranje_i_nastava/upisi", icon: "pen" },
   { title: "Erasmus+", sub: "Studijski boravak u inozemstvu", url: "#/medunarodna_suradnja/studenti/studijski_boravak_-_erasmus", icon: "globe" },
@@ -152,10 +254,14 @@ function drawNav() {
     items.push(`<div class="nav-item ${on ? "on" : ""}"><a href="#/${s.path}">${esc(s.title)}</a><div class="mega"><div class="mega-in">${cols}</div></div></div>`);
   }
   $("#mainnav").innerHTML = items.join("");
+  const nF = updateBadge();
+  $("#followBtn").innerHTML = ICON.star + (nF ? `<span class="badge">${nF}</span>` : "");
+  $("#followBtn").classList.toggle("on", /^#\/pracenje/.test(cur));
   $("#drawerBody").innerHTML = `<ul class="tree">
       <li><div class="row"><a href="#/">${ICON.home} Početna</a></div></li>
       <li><div class="row"><a href="#/vijesti">${ICON.news} Vijesti ${nNews ? `<span class="badge">${nNews}</span>` : ""}</a></div></li>
       <li><div class="row"><a href="#/oglasne-ploce">${ICON.board} Oglasne ploče ${nBoards ? `<span class="badge">${nBoards}</span>` : ""}</a></div></li>
+      <li><div class="row"><a href="#/pracenje">${ICON.star} Praćeno ${nF ? `<span class="badge">${nF}</span>` : ""}</a></div></li>
       <li><div class="row"><a href="#/raspored">${ICON.clock} Raspored predavanja</a></div></li>
       <li><div class="row"><a href="#/djelatnici">${ICON.people} Djelatnici</a></div></li>
       <li><div class="row"><a href="#/karta">${ICON.map} Karta stranica</a></div></li>
@@ -209,11 +315,13 @@ function withSide(path, body, sideOverride) {
 function viewHome() {
   const nB = D.boards.filter((x) => isNew(x.id)).length;
   const nN = D.news.filter((x) => isNew(x.id)).length;
-  const badgeFor = (q) => { const n = q.badge === "boards" ? nB : q.badge === "news" ? nN : 0; return n ? `<span class="badge">${n}</span>` : ""; };
+  const nF = unseenFollowed().length;
+  const badgeFor = (q) => { const n = q.badge === "boards" ? nB : q.badge === "news" ? nN : q.badge === "follow" ? nF : 0; return n ? `<span class="badge">${n}</span>` : ""; };
   const quick = QUICK.map((q) => `<a class="card q ${q.ext ? "ext" : ""}" href="${esc(q.url)}" ${q.ext ? 'target="_blank" rel="noopener"' : ""}>
       ${badgeFor(q)}<span class="ic">${ICON[q.icon]}</span><span><b>${esc(q.title)}</b><br><small>${esc(q.sub)}</small></span></a>`).join("");
   const myUnits = store.get("myUnits", []);
-  const boardsShown = (myUnits.length ? D.boards.filter((b) => (b.units || []).some((u) => myUnits.includes(u))) : D.boards).slice(0, 6);
+  const followed = followedItems();
+  const boardsShown = (followed.length ? followed : D.boards).slice(0, 6);
   const feed = (arr, base, metaFn) => arr.map((x) => `<a class="item" href="${base}${x.id}"><div class="t">${isNew(x.id) ? '<span class="new-dot">NOVO</span>' : ""}${esc(x.title)}</div><div class="meta">${metaFn(x)}</div></a>`).join("") || `<div class="empty">Nema obavijesti.</div>`;
   const secs = D.tree.map((s) => `<div class="card sec"><h3><a href="#/${s.path}">${esc(s.title)}</a></h3><ul>${s.children.slice(0, 7).map((c) => `<li><a href="${esc(linkFor(c))}" ${isExt(c) ? 'target="_blank" rel="noopener"' : ""}>${esc(c.title)}</a></li>`).join("")}${s.children.length > 7 ? `<li><a href="#/${s.path}"><b>+ još ${s.children.length - 7}</b></a></li>` : ""}</ul></div>`).join("");
   return `
@@ -226,8 +334,11 @@ function viewHome() {
   <div class="quick">${quick}</div>
   <div class="two">
     <div>
-      <div class="section-h"><h2>Oglasne ploče${myUnits.length ? ' <span class="chip brand">moje katedre</span>' : ""}</h2><a href="#/oglasne-ploce">Sve obavijesti →</a></div>
-      <div class="card feed">${feed(boardsShown, "#/oglasne-ploce/", (x) => `<span>${ago(x.date)}</span>${(x.units || []).slice(0, 1).map((u) => `<span class="chip">${esc(u)}</span>`).join("")}`)}</div>
+      <div class="section-h"><h2>${followed.length ? "Praćeno" : "Oglasne ploče"}</h2><a href="${followed.length ? "#/pracenje" : "#/oglasne-ploce"}">${followed.length ? "Sve praćeno →" : "Sve obavijesti →"}</a></div>
+      <div class="card feed">${followed.length
+        ? boardsShown.map((x) => `<a class="item" href="${isBoardItem(x) ? "#/oglasne-ploce/" : "#/vijesti/"}${x.id}"><div class="t">${isNew(x.id) ? '<span class="new-dot">NOVO</span>' : ""}${esc(x.title)}</div><div class="meta"><span>${ago(x.date)}</span>${whyChips(x)}</div></a>`).join("")
+        : feed(boardsShown, "#/oglasne-ploce/", (x) => `<span>${ago(x.date)}</span>${(x.units || []).slice(0, 1).map((u) => `<span class="chip">${esc(u)}</span>`).join("")}`)}</div>
+      ${followed.length ? "" : `<p class="legend"><a href="#/pracenje">★ Odaberi što pratiš</a> — kolegije, katedre ili riječi poput „kolokvij" — i dobivaj obavijesti.</p>`}
     </div>
     <div>
       <div class="section-h"><h2>Vijesti</h2><a href="#/vijesti">Sve vijesti →</a></div>
@@ -311,7 +422,7 @@ function drawNewsList() {
 function postCard(n, base, extraMeta) {
   return `<div class="card post ${n.img ? "with-img" : ""}"><div>
     <h3><a href="${base}${n.id}">${isNew(n.id) ? '<span class="new-dot">NOVO</span>' : ""}${esc(n.title)}</a></h3>
-    <div class="meta"><span>${fmtDate(n.date)}</span>${n.author ? `<span>· ${esc(n.author)}</span>` : ""}${extraMeta}</div>
+    <div class="meta"><span>${fmtDate(n.date)}</span>${n.author ? `<span>· ${esc(n.author)}</span>` : ""}${extraMeta}${whyChips(n)}</div>
     <div class="excerpt">${esc(plainText(n.html))}</div></div>
     ${n.img ? `<a href="${base}${n.id}"><img src="${esc(n.img)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></a>` : ""}</div>`;
 }
@@ -343,6 +454,7 @@ function viewArticle(kind, id) {
       <span>${ICON.cal}</span><span>${fmtDate(n.date)}</span>
       ${n.author ? `<span>· ${esc(n.author)}</span>` : ""}
       ${(isBoard ? n.units || [] : [n.cat]).map((u) => `<a class="chip brand" href="${isBoard ? "#/oglasne-ploce?u=" + encodeURIComponent(u) : "#/vijesti"}">${esc(u)}</a>`).join("")}
+      ${whyChips(n)}
       <a class="orig" href="${origUrl}" target="_blank" rel="noopener">${ICON.ext} Original</a>
     </div>
     ${n.img ? `<img class="article-img" src="${esc(n.img)}" alt="" onerror="this.remove()">` : ""}
@@ -407,6 +519,7 @@ function bindBoards() {
       e.stopPropagation();
       const u = star.dataset.star, my = store.get("myUnits", []);
       store.set("myUnits", my.includes(u) ? my.filter((x) => x !== u) : [...my, u]);
+      resetRules();
       return rerender();
     }
     boardState.mine = !!b.dataset.mine; boardState.unit = b.dataset.unit || "";
@@ -470,6 +583,8 @@ async function loadTimetable(g) {
       <div class="tt-hours" style="height:${(hi - lo) * H}px">${hours.join("")}</div>${cols.join("")}</div></div>`;
     const list = `<div class="tt-list">${days.map((d, i) => `<div class="card dayblock"><h3 style="${today === i + 1 ? "color:var(--brand)" : ""}">${DAYS[i]}${today === i + 1 ? " · danas" : ""}</h3>${d.length ? d.map((e) => `<div class="row"><span class="time">${e.start}–${e.end}</span><span><b style="color:${colorFor(e.name)}">●</b> <b>${esc(e.name)}</b> <span class="chip">${esc(e.kind)}</span><br><small class="r" style="color:var(--muted)">${esc(e.room)}</small></span></div>`).join("") : '<div style="color:var(--muted)">Slobodno 🎉</div>'}</div>`).join("")}</div>`;
     const courses = [...new Set(days.flat().map((e) => e.name))];
+    store.set("groupCourses", { group: g, list: courseNames(days) });
+    resetRules();
     const legend = `<div class="legend">${courses.map((c) => `<span><b style="color:${colorFor(c)}">●</b> ${esc(c)}</span>`).join("")}</div>
       <p class="legend">pred. = predavanje · a.vj. = auditorne vježbe · lab.vj. = laboratorijske vježbe · konst.vj. = konstrukcijske vježbe</p>`;
     box.innerHTML = grid + list + legend;
@@ -542,6 +657,110 @@ function bindStaff() {
   drawStaff();
 }
 
+
+/* ---- Praćeno: what you follow + everything that matches ---- */
+function notifCard() {
+  const f = follow();
+  const supported = "Notification" in window;
+  const perm = supported ? Notification.permission : "unsupported";
+  const where = STATIC ? "svakih 10 minuta" : "svake 2 minute";
+  let state, btns = "";
+  if (!supported) {
+    state = `Ovaj preglednik ne podržava obavijesti.${/iPhone|iPad/.test(navigator.userAgent) ? " Na iPhoneu: Dijeli → <b>Dodaj na početni zaslon</b>, pa otvori odande." : ""}`;
+  } else if (perm === "denied") {
+    state = "Obavijesti su <b>blokirane</b> u postavkama preglednika. Dopusti ih za ovu stranicu (ikona lokota pokraj adrese) pa osvježi.";
+  } else if (perm === "granted" && f.notify) {
+    state = `<b style="color:var(--ok)">✓ Obavijesti su uključene.</b> Javit ću ti kad stigne nova praćena objava.`;
+    btns = `<button class="btn" id="noteTest">Pošalji probnu</button><button class="btn" id="noteOff">Isključi</button>`;
+  } else {
+    state = "Uključi obavijesti da ti se javi kad stigne nova objava koju pratiš.";
+    btns = `<button class="btn primary" id="noteOn">${ICON.star} Uključi obavijesti</button>`;
+  }
+  return `<div class="card fcard"><h3>🔔 Obavijesti na uređaju</h3><p>${state}</p>${btns ? `<div class="btns">${btns}</div>` : ""}
+    <p class="hint">Stižu dok je stranica ili aplikacija otvorena (može i u pozadini). Nove objave provjeravam ${where}${STATIC ? "; FSB se čita svakih 15 minuta" : ""}.</p></div>`;
+}
+function viewFollow() {
+  const f = follow(), units = store.get("myUnits", []), g = store.get("group", ""), courses = myCourses();
+  const cats = [...new Set(D.news.map((n) => n.cat).filter(Boolean))];
+  const x = (attr, v) => `<button class="x" data-${attr}="${esc(v)}" aria-label="Makni">×</button>`;
+  const coursesBox = !g
+    ? `<p>Prvo <a href="#/raspored">odaberi svoju grupu u rasporedu</a> — onda mogu pratiti sve tvoje kolegije.</p>`
+    : courses.length
+      ? `<label class="check"><input type="checkbox" id="fCourses" ${f.myCourses ? "checked" : ""}> Prati sve kolegije iz grupe <b>${esc(g)}</b></label>
+         <div class="chips ${f.myCourses ? "" : "dim"}">${courses.map((c) => `<span class="chip">📘 ${esc(c)}</span>`).join("")}</div>
+         <p class="hint"><a href="#/raspored">Promijeni grupu</a></p>`
+      : `<p>Učitavam kolegije za grupu <b>${esc(g)}</b>… (ili <a href="#/raspored">otvori raspored</a>)</p>`;
+  const settings = `
+    ${notifCard()}
+    <div class="card fcard"><h3>📘 Moji kolegiji</h3>${coursesBox}</div>
+    <div class="card fcard"><h3>🔎 Ključne riječi</h3>
+      <p class="hint">Npr. ime kolegija, profesora, „kolokvij", „ispitni rok"…</p>
+      <form class="addrow" id="kwForm"><input class="input" id="kwInput" placeholder="Dodaj riječ…" autocomplete="off"><button class="btn primary">Dodaj</button></form>
+      <div class="chips">${f.keywords.map((k) => `<span class="chip brand">🔎 ${esc(k)} ${x("kw", k)}</span>`).join("") || '<span class="hint">Još nijedna.</span>'}</div>
+      <div class="chips ideas">${KEYWORD_IDEAS.filter((k) => !f.keywords.includes(k)).map((k) => `<button class="pill" data-idea="${esc(k)}">+ ${esc(k)}</button>`).join("")}</div>
+    </div>
+    <div class="card fcard"><h3>⭐ Katedre i zavodi</h3>
+      <div class="chips">${units.map((u) => `<span class="chip brand">⭐ ${esc(u)} ${x("unit", u)}</span>`).join("") || '<span class="hint">Još nijedna.</span>'}</div>
+      <select class="input" id="unitAdd" style="width:100%;margin-top:10px"><option value="">+ Dodaj katedru ili zavod…</option>
+        ${D.boardUnits.filter((u) => !units.includes(u)).sort((a, b) => a.localeCompare(b, "hr")).map((u) => `<option>${esc(u)}</option>`).join("")}</select>
+    </div>
+    <div class="card fcard"><h3>📰 Vijesti iz kategorija</h3>
+      <div class="pills">${cats.map((c) => `<button class="pill ${f.cats.includes(c) ? "on" : ""}" data-fcat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+    </div>`;
+  const items = followedItems();
+  const nNew = items.filter((n) => isNew(n.id)).length;
+  const list = items.length
+    ? items.slice(0, 60).map((n) => postCard(n, isBoardItem(n) ? "#/oglasne-ploce/" : "#/vijesti/", `<span class="chip">${isBoardItem(n) ? "Oglasna ploča" : "Vijest"}</span>`)).join("")
+    : `<div class="card empty">Ništa još ne odgovara tvojim pravilima.<br>Dodaj kolegij, katedru ili ključnu riječ lijevo${innerWidth < 960 ? " (gore)" : ""}.</div>`;
+  return `${crumbsFix(`<nav class="crumbs"></nav>`, [], "Praćeno")}
+    <h1 class="title">Praćeno</h1>
+    <p class="subtitle">Odaberi što te zanima — ovdje se skupljaju samo te objave, a za nove ti stiže obavijest.</p>
+    <div class="follow-grid">
+      <div class="follow-settings">${settings}</div>
+      <div>
+        <div class="section-h" style="margin-top:0"><h2>${items.length} praćenih objava${nNew ? ` <span class="badge">${nNew} novo</span>` : ""}</h2>
+          ${nNew ? '<button class="btn" id="followSeen">Označi pročitanim</button>' : ""}</div>
+        <div class="posts">${list}</div>
+      </div>
+    </div>`;
+}
+function bindFollow() {
+  const rerender = () => { const y = scrollY; render(); scrollTo(0, y); };
+  const f = follow();
+  $("#noteOn")?.addEventListener("click", async () => {
+    let p = Notification.permission;
+    if (p !== "granted") p = await Notification.requestPermission();
+    if (p === "granted") {
+      setFollow({ notify: true });
+      if (DATA_URL && "serviceWorker" in navigator) await navigator.serviceWorker.ready.catch(() => {});
+      showNote({ id: "test", title: "Obavijesti rade! Ovako će izgledati nova praćena objava.", html: "", units: [] });
+    }
+    rerender();
+  });
+  $("#noteTest")?.addEventListener("click", () => showNote(followedItems()[0] || { id: "test", title: "Probna obavijest iz Boljeg FSB-a", html: "", units: [] }));
+  $("#noteOff")?.addEventListener("click", () => { setFollow({ notify: false }); rerender(); });
+  $("#fCourses")?.addEventListener("change", (e) => { setFollow({ myCourses: e.target.checked }); rerender(); });
+  $("#kwForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = $("#kwInput").value.trim().replace(/\s+/g, " ");
+    if (v.length >= 2 && !f.keywords.some((k) => norm(k) === norm(v))) setFollow({ keywords: [...f.keywords, v] });
+    rerender(); $("#kwInput").focus();
+  });
+  $$("[data-idea]").forEach((b) => b.addEventListener("click", () => { setFollow({ keywords: [...f.keywords, b.dataset.idea] }); rerender(); }));
+  $$("[data-kw]").forEach((b) => b.addEventListener("click", () => { setFollow({ keywords: f.keywords.filter((k) => k !== b.dataset.kw) }); rerender(); }));
+  $$("[data-unit]").forEach((b) => b.addEventListener("click", () => { store.set("myUnits", store.get("myUnits", []).filter((u) => u !== b.dataset.unit)); resetRules(); rerender(); }));
+  $("#unitAdd").addEventListener("change", (e) => { if (e.target.value) { store.set("myUnits", [...store.get("myUnits", []), e.target.value]); resetRules(); rerender(); } });
+  $$("[data-fcat]").forEach((b) => b.addEventListener("click", () => { const c = b.dataset.fcat; setFollow({ cats: f.cats.includes(c) ? f.cats.filter((x) => x !== c) : [...f.cats, c] }); rerender(); }));
+  $("#followSeen")?.addEventListener("click", () => { markSeen(followedItems().map((n) => n.id)); rerender(); });
+  // local-server mode: we only know a group's courses after fetching its timetable once
+  const g = store.get("group", "");
+  if (g && !myCourses().length && !STATIC) {
+    fetch("/api/raspored?grupa=" + encodeURIComponent(g)).then((r) => r.json()).then((r) => {
+      if (r.days) { store.set("groupCourses", { group: g, list: courseNames(r.days) }); resetRules(); if (location.hash.startsWith("#/pracenje")) rerender(); }
+    }).catch(() => {});
+  }
+}
+
 /* ---- sitemap ---- */
 function viewSitemap() {
   const all = (nodes) => nodes.map((n) => { const c = { ...n, children: all(n.children) }; return c; });
@@ -580,6 +799,7 @@ function render() {
   else if (path === "raspored") { if (params.get("g")) store.set("group", params.get("g")); html = viewTimetable(); bind = bindTimetable; title = "Raspored predavanja"; }
   else if (path === "djelatnici") { if (params.get("j")) staffState = { q: "", unit: params.get("j") }; if (params.get("q")) staffState = { q: params.get("q"), unit: "" }; html = viewStaff(); bind = bindStaff; title = "Djelatnici"; }
   else if (path === "karta") { html = viewSitemap(); title = "Karta stranica"; }
+  else if (path === "pracenje") { html = viewFollow(); bind = bindFollow; title = "Praćeno"; }
   else if (SPECIAL[path]) { location.replace(SPECIAL[path]); return; }
   else { html = viewPage(path); title = IDX[path]?.node.title || "FSB"; }
   const main = $("#main");
@@ -678,6 +898,11 @@ async function load() {
   D = EMBEDDED || await fetch(DATA_URL || "/api/data", { cache: "no-cache" }).then((r) => r.json());
   indexData();
   render();
+  const waiting = unseenFollowed().filter((n) => !new Set(store.get("notified", [])).has(n.id));
+  if (waiting.length) {
+    notifyFollowed(waiting);  // remember them so they don't pop up again later
+    toast(`★ ${waiting.length === 1 ? "1 nova praćena objava" : waiting.length + " novih praćenih objava"} otkad si zadnji put bio/la ovdje. <a href="#/pracenje">Pogledaj</a>`, 12000);
+  }
   if (STATIC) {
     $("#status").textContent = "Snimka od " + new Date(D.updated).toLocaleString("hr") + " — provjeravam ima li novijeg…";
     $("#refreshBtn").textContent = "Provjeri novosti";
@@ -698,10 +923,7 @@ async function poll() {
       indexData();
       const fresh = [...D.boards, ...D.news].filter((x) => !before.has(x.id));
       if (!onInput) render(); else drawNav();
-      if (fresh.length) {
-        const f = fresh[0], isB = D.boards.includes(f);
-        toast(`${fresh.length === 1 ? "Nova objava" : fresh.length + " nove objave"}: <a href="${isB ? "#/oglasne-ploce/" : "#/vijesti/"}${f.id}">${esc(f.title.slice(0, 70))}</a>`);
-      }
+      announce(fresh);
     }
   } catch (e) { $("#status").textContent = "Lokalni server ne odgovara."; }
 }
@@ -712,7 +934,17 @@ $("#refreshBtn").addEventListener("click", async () => {
   toast("Povlačim najnovije s fsb.unizg.hr — traje oko minutu.", 4000);
   const iv = setInterval(async () => { const s = await fetch("/api/status").then((r) => r.json()); if (!s.refreshing) { clearInterval(iv); poll(); } }, 3000);
 });
+/* New posts arrived: system notification for followed ones, a toast for the rest. */
+function announce(fresh) {
+  if (!fresh.length) return;
+  const hits = notifyFollowed(fresh);
+  const f = hits[0] || fresh[0];
+  const link = `<a href="${isBoardItem(f) ? "#/oglasne-ploce/" : "#/vijesti/"}${f.id}">${esc(f.title.slice(0, 70))}</a>`;
+  if (hits.length) toast(`★ ${hits.length === 1 ? "Nova praćena objava" : hits.length + " novih praćenih objava"}: ${link}`, 12000);
+  else toast(`${fresh.length === 1 ? "Nova objava" : fresh.length + " novih objava"}: ${link}`);
+}
 /* Exported file: fetch the newest data.json from the repo's "data" branch (GitHub rebuilds it every 15 min).
+   On the hosted site the same function re-reads data.json next to the page.
    Falls back silently to the snapshot inside the file when there's no internet. */
 async function pullRemote(quiet) {
   if (!STATIC || !(DATA_URL || D.remote)) return;
@@ -729,7 +961,7 @@ async function pullRemote(quiet) {
         const onInput = /INPUT|SELECT/.test(document.activeElement?.tagName || "");
         if (!onInput) render(); else drawNav();
         const nw = [...D.boards, ...D.news].filter((x) => !before.has(x.id));
-        if (nw.length) toast(`${nw.length === 1 ? "Nova objava" : nw.length + " novih objava"}: <a href="${D.boards.includes(nw[0]) ? "#/oglasne-ploce/" : "#/vijesti/"}${nw[0].id}">${esc(nw[0].title.slice(0, 70))}</a>`);
+        if (nw.length) announce(nw);
         else if (!quiet) toast("Podaci osvježeni s interneta.", 3000);
       }
       $("#status").textContent = "Ažurirano " + new Date(D.updated).toLocaleString("hr") + " (online)";

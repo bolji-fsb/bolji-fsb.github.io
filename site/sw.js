@@ -1,6 +1,6 @@
 /* Offline support for the installed app: always try the network first (so new
    obavijesti show up), and fall back to the last saved copy when offline. */
-const CACHE = "bolji-fsb-v1";
+const CACHE = "bolji-fsb-v2";
 const SHELL = ["./", "index.html", "app.js", "style.css", "manifest.webmanifest", "icon-192.png", "icon-512.png", "data.json"];
 
 self.addEventListener("install", (e) => {
@@ -26,4 +26,16 @@ self.addEventListener("fetch", (e) => {
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || caches.match("./")))
   );
+});
+
+/* Tapping a notification: bring the app to the front on that post (or open it if it was closed). */
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || "./", self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (list) => {
+    const win = list.find((c) => "focus" in c);
+    if (!win) return self.clients.openWindow(url);
+    await win.focus();
+    return win.navigate ? win.navigate(url) : win;
+  }));
 });
