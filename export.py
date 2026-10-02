@@ -28,7 +28,7 @@ def main():
     groups = data["timetable"]["groups"]
     data["timetables"] = {}
     for i, g in enumerate(groups, 1):
-        data["timetables"][g] = fsb.timetable(g, data["timetable"], max_age=6 * 3600)
+        data["timetables"][g] = fsb.timetable(g, data["timetable"], max_age=24 * 3600)  # timetables barely change: once a day
         if i % 20 == 0:
             fsb.log("timetables %d/%d" % (i, len(groups)))
 
@@ -45,6 +45,11 @@ def main():
                 people[key] = p
         if i % 25 == 0:
             fsb.log("staff units %d/%d" % (i, len(units)))
+    # The published data is public and downloadable, so it carries no e-mail addresses:
+    # a bulk list of 500+ staff e-mails is a GDPR / spam problem even though each one is on fsb.unizg.hr.
+    # People still get a link to their official FSB profile, where the contact details live.
+    for p in people.values():
+        p["email"] = ""
     data["staff"] = sorted(people.values(), key=lambda p: (p["surname"], p["name"]))
 
     # the hosted site (GitHub Pages of the bolji-fsb organisation): the offline file pulls updates from it

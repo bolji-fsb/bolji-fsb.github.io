@@ -363,3 +363,5 @@ html, body { overflow-x: hidden; }
   .search-close span { display: grid; }
   .search-close span:active { background: var(--surface-2); }
 }
+.about h2 { font-size: 18px; margin-top: 1.3em; }
+.about h2:first-child { margin-top: 0; }

@@ -265,6 +265,7 @@ function drawNav() {
       <li><div class="row"><a href="#/raspored">${ICON.clock} Raspored predavanja</a></div></li>
       <li><div class="row"><a href="#/djelatnici">${ICON.people} Djelatnici</a></div></li>
       <li><div class="row"><a href="#/karta">${ICON.map} Karta stranica</a></div></li>
+      <li><div class="row"><a href="#/o-stranici">${ICON.news} O stranici</a></div></li>
     </ul><hr style="border:0;border-top:1px solid var(--line);margin:10px 0">` + treeHTML(D.tree, currentPath(), true);
   bindTree($("#drawerBody"));
 }
@@ -643,7 +644,7 @@ async function drawStaff() {
         <b>${esc(p.title ? p.title + " " : "")}${esc(p.name)} ${esc(p.surname)}</b>
         <div class="role">${esc(p.role)}</div>
         ${p.unit ? `<a class="chip brand" href="#/djelatnici" data-unit="${esc(p.unitId)}" style="margin-top:6px">${esc(p.unit)}</a>` : ""}
-        <div class="acts">${p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : ""}${p.profile ? `<a href="${esc(p.profile)}" target="_blank" rel="noopener">Profil ↗</a>` : ""}</div>
+        <div class="acts">${p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : ""}${p.profile ? `<a href="${esc(p.profile)}" target="_blank" rel="noopener">${p.email ? "Profil ↗" : "Kontakt i e-mail na FSB profilu ↗"}</a>` : ""}</div>
       </div></div>`).join("")}</div>` : '<div class="card empty">Nitko nije pronađen.</div>';
     $$("[data-unit]", box).forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); staffState = { q: "", unit: a.dataset.unit }; $("#staffQ").value = ""; $("#staffUnit").value = a.dataset.unit; drawStaff(); scrollTo({ top: 0, behavior: "smooth" }); }));
   } catch (e) {
@@ -761,6 +762,47 @@ function bindFollow() {
   }
 }
 
+/* ---- about ---- */
+const REPO = "https://github.com/bolji-fsb/bolji-fsb.github.io";
+function viewAbout() {
+  const when = D.updated ? new Date(D.updated).toLocaleString("hr") : "—";
+  return `${crumbsFix(`<nav class="crumbs"></nav>`, [], "O stranici")}
+    <h1 class="title">O stranici</h1>
+    <p class="subtitle">Bolji FSB je <b>neslužbeni</b> studentski projekt — pregledniji prikaz javnih stranica Fakulteta strojarstva i brodogradnje.</p>
+    <article class="card prose about">
+      <h2>Što je ovo?</h2>
+      <p>Svi podaci (stranice, vijesti, oglasne ploče, raspored) dolaze sa službene stranice
+        <a href="https://www.fsb.unizg.hr/index.php?fsbonline" target="_blank" rel="noopener">fsb.unizg.hr</a> — ovdje su samo drukčije složeni:
+        jedno pretraživanje za sve, raspored po grupi, oglasne ploče po katedrama i mogućnost praćenja kolegija.
+        Stranica nije povezana s Fakultetom niti je Fakultet odobrio. <b>Za sve službeno vrijedi samo fsb.unizg.hr</b> — svaka stranica ovdje ima poveznicu na original.</p>
+
+      <h2>Čiji je sadržaj?</h2>
+      <p>Sav sadržaj (tekstovi, slike, dokumenti) pripada Fakultetu strojarstva i brodogradnje i njegovim autorima.
+        Dokumenti i slike se ne kopiraju — otvaraju se izravno s FSB-ovog poslužitelja.</p>
+
+      <h2>Kako radi?</h2>
+      <ul>
+        <li>Svakih 15 minuta automatski se pročitaju javne stranice s vijestima i oglasnim pločama, ostale stranice svakih nekoliko sati, a raspored jednom dnevno — uz pauze između zahtjeva, da se FSB-ov poslužitelj ne opterećuje.</li>
+        <li>Čitaju se <b>samo javne stranice</b>, bez ikakve prijave (nema Studomata, ocjena ni osobnih podataka studenata).</li>
+        <li>U imeniku djelatnika nema e-mail adresa — za kontakt vodi poveznica na službeni FSB profil.</li>
+      </ul>
+
+      <h2>Privatnost</h2>
+      <ul>
+        <li>Nema prijave, kolačića za praćenje, oglasa ni analitike.</li>
+        <li>Tvoje postavke (grupa, praćeni kolegiji, pročitane objave) spremaju se <b>samo u tvom pregledniku</b> i nikamo se ne šalju.</li>
+      </ul>
+
+      <h2>Ispravci i uklanjanje</h2>
+      <p>Ako nešto nije točno, ili ako Fakultet ili autor sadržaja želi da se nešto promijeni ili ukloni — javite se i bit će učinjeno odmah.
+        Kontakt: <a href="${REPO}/issues/new" target="_blank" rel="noopener">otvorite prijavu (issue) na GitHubu ↗</a>.</p>
+
+      <h2>Kod</h2>
+      <p>Kod je otvoren: <a href="${REPO}" target="_blank" rel="noopener">${REPO.replace("https://", "")} ↗</a>.
+        Podaci zadnji put osvježeni: ${esc(when)}.</p>
+    </article>`;
+}
+
 /* ---- sitemap ---- */
 function viewSitemap() {
   const all = (nodes) => nodes.map((n) => { const c = { ...n, children: all(n.children) }; return c; });
@@ -771,6 +813,7 @@ function viewSitemap() {
       <div class="card"><ul class="tree"><li class="open sec-top"><div class="row"><a href="#/">Brzi pristup</a></div><ul>
         <li><div class="row"><a href="#/vijesti">Vijesti</a></div></li><li><div class="row"><a href="#/oglasne-ploce">Oglasne ploče</a></div></li>
         <li><div class="row"><a href="#/raspored">Raspored predavanja</a></div></li><li><div class="row"><a href="#/djelatnici">Djelatnici</a></div></li>
+        <li><div class="row"><a href="#/pracenje">Praćeno</a></div></li><li><div class="row"><a href="#/o-stranici">O stranici</a></div></li>
         ${QUICK.filter((q) => q.ext).map((q) => `<li><div class="row"><a class="ext" href="${esc(q.url)}" target="_blank" rel="noopener">${esc(q.title)}</a></div></li>`).join("")}
       </ul></li></ul></div>
       ${D.tree.map((s) => `<div class="card">${treeHTML([s], "").replace('<li class=" sec-top">', '<li class="open sec-top">').replace(/<li class="([^"]*)"/g, (m, c) => `<li class="${c} open"`)}</div>`).join("")}
@@ -799,6 +842,7 @@ function render() {
   else if (path === "raspored") { if (params.get("g")) store.set("group", params.get("g")); html = viewTimetable(); bind = bindTimetable; title = "Raspored predavanja"; }
   else if (path === "djelatnici") { if (params.get("j")) staffState = { q: "", unit: params.get("j") }; if (params.get("q")) staffState = { q: params.get("q"), unit: "" }; html = viewStaff(); bind = bindStaff; title = "Djelatnici"; }
   else if (path === "karta") { html = viewSitemap(); title = "Karta stranica"; }
+  else if (path === "o-stranici") { html = viewAbout(); title = "O stranici"; }
   else if (path === "pracenje") { html = viewFollow(); bind = bindFollow; title = "Praćeno"; }
   else if (SPECIAL[path]) { location.replace(SPECIAL[path]); return; }
   else { html = viewPage(path); title = IDX[path]?.node.title || "FSB"; }
