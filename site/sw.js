@@ -1,6 +1,6 @@
 /* Offline support for the installed app: always try the network first (so new
    obavijesti show up), and fall back to the last saved copy when offline. */
-const CACHE = "fsb-kompas-v3";
+const CACHE = "fsb-putokaz-v4";
 const SHELL = ["./", "index.html", "app.js", "style.css", "manifest.webmanifest", "icon-192.png", "icon-512.png", "data.json"];
 
 self.addEventListener("install", (e) => {

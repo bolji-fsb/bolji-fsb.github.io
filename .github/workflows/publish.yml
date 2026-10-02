@@ -1,5 +1,5 @@
-# Every 15 minutes: re-read fsb.unizg.hr and publish https://fsb-kompas.github.io/
-# (the website + data.json + the downloadable offline file fsb-kompas.html).
+# Every 15 minutes: re-read fsb.unizg.hr and publish https://fsb-putokaz.github.io/
+# (the website + data.json + the downloadable offline file fsb-putokaz.html).
 name: publish
 on:
   schedule:
