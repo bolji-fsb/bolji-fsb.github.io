@@ -1,17 +1,17 @@
-# Rebuilds the site from fsb.unizg.hr every hour and publishes it on GitHub Pages.
+# Every 15 minutes: re-read fsb.unizg.hr, rebuild the offline HTML file + data.json,
+# and force-push them as a single commit to the "data" branch.
+# The HTML file fetches data.json from there (raw.githubusercontent.com) when it's online.
 name: publish
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 concurrency:
-  group: pages
+  group: publish
   cancel-in-progress: false
 jobs:
   build:
@@ -29,15 +29,13 @@ jobs:
           key: fsb-cache-${{ github.run_id }}
           restore-keys: fsb-cache-
       - run: python3 export.py --site
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist/site
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Push to the data branch (one commit, no growing history)
+        run: |
+          cd dist/site
+          rm -f index.html
+          git init -q -b data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.json fsb-online.html
+          git commit -q -m "Data snapshot $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data

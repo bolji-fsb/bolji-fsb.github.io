@@ -4,9 +4,9 @@ pages, news, notice boards, every group's timetable and the whole staff director
 It works offline / from any folder / on any computer, but it's a snapshot - re-run this to update.
 
     python3 export.py            -> dist/fsb-online.html
-    python3 export.py --site     -> also dist/site/ (index.html + data.json + fsb-online.html) for hosting
+    python3 export.py --site     -> also dist/site/ (data.json + fsb-online.html) for the "data" branch
 
-The file pulls fresh data from the hosted copy's data.json whenever it's online."""
+The file pulls fresh data.json from GitHub whenever it's online."""
 import json
 import os
 import sys
@@ -21,7 +21,7 @@ SITE = os.path.join(HERE, "site")
 def main():
     t0 = time.time()
     fsb.log("building pages, news and notice boards…")
-    data = fsb.build()
+    data = fsb.build(live_age=5 * 60)  # news + notice boards: always re-read (runs every 15 min)
 
     groups = data["timetable"]["groups"]
     data["timetables"] = {}
@@ -45,8 +45,8 @@ def main():
             fsb.log("staff units %d/%d" % (i, len(units)))
     data["staff"] = sorted(people.values(), key=lambda p: (p["surname"], p["name"]))
 
-    # where the downloadable file looks for fresh data (the hosted copy, rebuilt hourly by GitHub)
-    data["remote"] = os.environ.get("FSB_REMOTE", "sharknet.me/fsb-online/")
+    # where the file looks for fresh data: the repo's "data" branch, rebuilt hourly by GitHub Actions
+    data["remote"] = os.environ.get("FSB_REMOTE", "https://raw.githubusercontent.com/TigerShark900/fsb-online/data/data.json")
 
     css = open(os.path.join(SITE, "style.css"), encoding="utf-8").read()
     js = open(os.path.join(SITE, "app.js"), encoding="utf-8").read()
